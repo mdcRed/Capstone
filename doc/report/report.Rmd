@@ -1,0 +1,134 @@
+---
+title: "Untitled"
+author: "MDC"
+date: "November 13, 2015"
+output: pdf_document
+---
+
+# Abstract
+
+# Introduction
+
+Yelp is a businuess founded in 2004 that helps people to find local business; its mobbile application is available on the internet and on numerous mobil devices.  The **Yelp Challenge Dataset** used in this project contains 1.5 million reviews of 61K business; the reviews from 366K users with 495K tips.  The entire **Yelp Challenge Dataset** comprises 5 files -- business, review, user, check-in, and tip; the file is in JSON format; details of the data elements are found at [here](http://www.yelp.com/dataset_challenge).  
+
+The paper is organized as follows: [(1)](#preparing-data) this seciton discusses the process of downloading data, reading JSON file formats into R objects; extracting only data for interested business at interested city; merging business and review data for business and review in focus of this paper.  [(2)](#preparing-data-for-text-mining) section discuss how text data is being prepared for text mining; the proces includes remove punctuation, numbers, turn to lower case, steming, remove stop words.  Generate *Document Term Matrix (dtm)*; word cloud is a useful tool to have a summary view of text of corpus of interest.  
+
+The source code is found [here](https://github.com/mdcRed/Capstone_LDA_LSA) in github. 
+
+## Preparing Data
+
+Down load the dataset at the above URL.  Unzip the file.  *getJsonData.R* is the function that read a JSON file and convert it into a data frame.  There are 5 data frames: business (*businessDf*), review (*reviewDf*), user (*userDf*), check-in (*checkinDf*), and tip (*tipDf*).  Since each of the dataframe is very large (larger than than a class project data), the data is saved into the file system, which is stored in the directory *./processData*/ in the github.  This is done to reduce that time parsing; for each use, one only need to load() the process data into the R-global environment to use. 
+
+In order to make a quick and fast initial exploratory analysis, *businessDf* is persisted into a SQL Server database.  The following tables show the distribution of number of business categories contains terms like '%physician%', '%doctor%', '%medic%', '%health%, and not '%market%' ('%' is SQL wildcard syntax).  The following table shows the distribution of number of businesses for each state that satisfy the above conditions (see function *getDataFromDb.R* in [getAndPrepDAta](https://github.com/mdcRed/Capstone_LDA_LSA/src/getAndPrepData).  
+
+
+```{r, echo=FALSE, warning=FALSE }
+library('RODBC')
+options(stringAsFactors=FALSE)
+
+connHandle <- odbcConnect("p-sql-w-ehr01.athena_dev", uid="ehruser", pwd="ehruser123");
+
+sqlString <- paste0(
+  "select b.state, COUNT(*) number_of_reviews		   "
+  ," from athena_dev.dbo.temp_bdf  b					   "
+  ," where 1 = 1										   "
+  ," and   (lower(categories) like '%doctor%'			   "
+  ,"       or    lower(categories) like '%physician%'	   "
+  ,"       or    lower(categories) like '%health%'	   "
+  ,"       or    LOWER(categories) like '%medic%')	   "
+  ," and   (LOWER(categories) not like '%market%')	   "
+  ," group by b.state									   "
+  ," order by COUNT(*)								   "
+)
+
+df <- sqlQuery (connHandle,as.is=TRUE, sqlString);
+
+close (connHandle);
+
+df
+
+```
+
+From the below table, **reviews for Medical related businesses in the states AZ, NV, and NC are included in this analysis.**  *AZ_df, NV_df, NC_df* are the dataframes that contain the merged reviews and business information for the healthcare related business in the three states Arizona, Nevada, and North Carolina.  R code that generates these the dataframes is found in *combineBusinessReview.R*, in the same [getAndPrepDAta](https://github.com/mdcRed/Capstone_LDA_LSA/src/getAndPrepData).  *For state AZ, there are 12,358 review text; 9,006 reviews for NV state, and 940 reviews for NC state.*
+
+
+## Preparing data for text mining
+
+In order to prepare text for mining purpose,a *corpus* is generated from the text. After which,  punctuations are removed, numbers are removed, text is converted to lower cases.  In addition, text will be stemming, and stop words will be removed.  For this exercise, English stopwords will be using.  Refer to function [clean()](https://github.com/mdcRed/Capstone_LDA_LSA/src/dtm_tdm), for details of this process.  R *tm* package provides all functions to do the cleaning process.
+
+When the corpus is 'cleaned', the using *tm* package to generate document term matrix (dtm) or term document matrix (tdm).  DTM is a matrix of m-term of represent the vocabulary of the text data set as columns, and n-document rows; where as the tdm has n-document columns, and m-term rows.  Refer to *prepCorpus_dtm()* and *prepCorpus_tdm()* [here](https://github.com/mdcRed/Capstone_LDA_LSA/src/dtm_tdm) for codes.  
+
+**Sparsity**   All dtm's and tdm's are quite sparse.  After number of trials in removing the sparsity, the dtm's and tdm's  achieve 78-79 percent sparsity, and the vocabulary contains from 47-53 terms.  
+
+Wordcloud for AZ  review text is shown below, on the left, the text in DTM is sparse, on the right some sparsity is removed, about 78% sparsity.
+
+Following wordcloud shows the very sparse reviews DTM for the state of AZ, and its wordcloud when DTM sparsity is removed to 78%.  
+
+```{r, echo=FALSE, warning=FALSE}
+
+load ("C:/Users/mcoyne/Documents/R/basicTm/capstone/processData/AZ.dtm.Rdata")
+load ("C:/Users/mcoyne/Documents/R/basicTm/capstone/processData/AZ.dtm.sp.Rdata")
+
+
+AZ.dtm.mat <- as.matrix(AZ.dtm);
+AZ_freq      <- colSums(AZ.dtm.mat);
+AZ_freq       <- sort(AZ_freq, decreasing = TRUE)
+AZ_words <- names(AZ_freq)
+wordcloud(AZ_words,AZ_freq, scale=c(8,.2),min.freq=200,
+          max.words=Inf, random.order=FALSE, rot.per=.15
+          , colors=brewer.pal(8,"Dark2"))
+
+## Less sparse
+AZ.dtm.sp.mat <- as.matrix(AZ.dtm.sp);
+AZ_freq       <- colSums(AZ.dtm.sp.mat);
+AZ_freq       <- sort(AZ_freq, decreasing = TRUE)
+AZ_words <- names(AZ_freq)
+wordcloud(AZ_words,AZ_freq, scale=c(8,.2),min.freq=200,
+          max.words=Inf, random.order=FALSE, rot.per=.15
+          , colors=brewer.pal(8,"Set3"))
+
+```
+
+
+# Methods 
+
+## LDA topic modeling
+
+```{r, echo=FALSE, warning=FALSE}
+
+load('C:/Users/mcoyne/Documents/R/basicTm/capstone/processData/AZ.dtm.sp.LDA.fitted.many.Rdata')
+
+logL  <- as.data.frame ( as.matrix( lapply (AZ.dtm.sp.LDA.fitted.many, logLik)));
+logL.df <- data.frame (topic=seq(2,100, by=1), logLikelihood=as.numeric(as.matrix(logL)));
+
+#graph
+logL.df.sort <- logL.df[order(-logL.df$logLikelihood),];
+optK <- logL.df.sort[1,]$topic
+
+title <- paste0("LDA topic modeling. Model Selection using Log Likelihood.   Optimal k =", optK);
+
+ggplot(logL.df, aes(x = topic, y = logLikelihood)) + 
+  xlab("Number of topics") + 
+  ylab("Log likelihood of the model") + 
+  ggtitle(title) +
+  theme(plot.title=element_text(size=14, hjust=2, family="Trebuchet MS", face="bold")) +
+  geom_line() + 
+  geom_point(size=3,colours="#d55E00") +
+  geom_vline(xintercept=optK,color="red") +
+  theme_bw()  + 
+  theme(axis.title.x = element_text(vjust = -0.5, size = 14)) + 
+  theme(axis.title.y=element_text(size = 14, angle=90, vjust= -0.25)) 
+
+## resturn the optK
+
+optK
+
+
+```
+
+## LSA Document similarity
+
+# Discussion
+
+
+# References
