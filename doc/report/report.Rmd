@@ -1,25 +1,29 @@
 ---
-title: "Untitled"
-author: "MDC"
+title: "Text mining using LDA and LSA"
+author: "My D. Coyne"
 date: "November 13, 2015"
 output: pdf_document
----
 
-# Abstract
+---
 
 # Introduction
 
-Yelp is a businuess founded in 2004 that helps people to find local business; its mobbile application is available on the internet and on numerous mobil devices.  The **Yelp Challenge Dataset** used in this project contains 1.5 million reviews of 61K business; the reviews from 366K users with 495K tips.  The entire **Yelp Challenge Dataset** comprises 5 files -- business, review, user, check-in, and tip; the file is in JSON format; details of the data elements are found at [here](http://www.yelp.com/dataset_challenge).  
+Yelp is a businuess founded in 2004 that helps people to find local business; its application is available on the internet and is accessble via numerous mobile devices.  This makes an ideal application for visitors to read/write reviews, find events, or talk to other "Yelpers".  It is very exciting that Yelp makes available the **Yelp Challenge Dataset** to the Data Science Specialization Capstone project for data analysis purpose.  The Yelp Challenge Dataset comprises of 5 files -- business, review, user, check-in, and tip, where there are 1.5 million reviews of 61K business; the reviews from 366K users with 495K tips. Details of the data elements are found at [here](http://www.yelp.com/dataset_challenge).  
 
-The paper is organized as follows: [(1)](#preparing-data) this seciton discusses the process of downloading data, reading JSON file formats into R objects; extracting only data for interested business at interested city; merging business and review data for business and review in focus of this paper.  [(2)](#preparing-data-for-text-mining) section discuss how text data is being prepared for text mining; the proces includes remove punctuation, numbers, turn to lower case, steming, remove stop words.  Generate *Document Term Matrix (dtm)*; word cloud is a useful tool to have a summary view of text of corpus of interest.  
+Using the *business and review datasets*, I aim to answer the following questions for my text analysis.  It seems to be natural that a reviewer gives a high score then it is an indication of a good service rendered at a business; similarly, a low review score accompanied with uncomplimentary service received by the reviewers. **Would it is possible to qualitatively determine the review score using text analytics?  In other words are there particular terms indicative of the score?  The application of the analysis may be used to help Yelpers to retrieve better results from searching reviews.  The analysis focuses on medical doctor, physician, dentist or heatth centers services.** 
+
+
+The paper is organized as follows: [(1)](#methods-and-data) seciton discusses the process of obtaining, cleaning, and preparing data analysis.  The   [(2)](#results) section discusses findings.  Finally, the [(3)](#dicussion) section will interpret the reuslts and answer the above questions. 
 
 The source code is found [here](https://github.com/mdcRed/Capstone_LDA_LSA) in github. 
 
+# Methhods and Data
+
 ## Preparing Data
 
-Down load the dataset at the above URL.  Unzip the file.  *getJsonData.R* is the function that read a JSON file and convert it into a data frame.  There are 5 data frames: business (*businessDf*), review (*reviewDf*), user (*userDf*), check-in (*checkinDf*), and tip (*tipDf*).  Since each of the dataframe is very large (larger than than a class project data), the data is saved into the file system, which is stored in the directory *./processData*/ in the github.  This is done to reduce that time parsing; for each use, one only need to load() the process data into the R-global environment to use. 
+Downloaded the datasets at the above URL, after unzipped, *getJsonData.R* is the function that read a JSON file "flatten" it into data frames. There are 5 data frames: business (*businessDf*), review (*reviewDf*), user (*userDf*), check-in (*checkinDf*), and tip (*tipDf*).  In this project, since "raw" and process data are not only large, but also takes long computing time to produce; the intermidiate data R objects are persisted into file system and loaded into R global environment as needed.  Database tables are also utilized for peristence and queries as well.  
 
-In order to make a quick and fast initial exploratory analysis, *businessDf* is persisted into a SQL Server database.  The following tables show the distribution of number of business categories contains terms like '%physician%', '%doctor%', '%medic%', '%health%, and not '%market%' ('%' is SQL wildcard syntax).  The following table shows the distribution of number of businesses for each state that satisfy the above conditions (see function *getDataFromDb.R* in [getAndPrepDAta](https://github.com/mdcRed/Capstone_LDA_LSA/src/getAndPrepData).  
+The following table shows the distribution of number of businesses, grouped by state, that offers medical doctor, healthcare center, dentists, chiropractor services (see function *getDataFromDb.R* in [getAndPrepDAta](https://github.com/mdcRed/Capstone_LDA_LSA/src/getAndPrepData) github.  
 
 
 ```{r, echo=FALSE, warning=FALSE }
@@ -29,14 +33,21 @@ options(stringAsFactors=FALSE)
 connHandle <- odbcConnect("p-sql-w-ehr01.athena_dev", uid="ehruser", pwd="ehruser123");
 
 sqlString <- paste0(
-  "select b.state, COUNT(*) number_of_reviews		   "
+  "select b.state, COUNT(distinct b.id) 'number of health related business'	   "
   ," from athena_dev.dbo.temp_bdf  b					   "
   ," where 1 = 1										   "
   ," and   (lower(categories) like '%doctor%'			   "
   ,"       or    lower(categories) like '%physician%'	   "
   ,"       or    lower(categories) like '%health%'	   "
   ,"       or    LOWER(categories) like '%medic%')	   "
-  ," and   (LOWER(categories) not like '%market%')	   "
+  ," and   (      LOWER(categories) not like '%market%'		 "
+  ,"        and   LOWER(categories) not like '%Massage%'  	 "
+  ,"        and   LOWER(categories) not like '%Gyms%' 		 "
+  ,"        and   LOWER(categories) not like '%pilate%'		 "
+  ,"        and   LOWER(categories) not like '%phopping%'		 "
+  ,"        and   LOWER(categories) not like '%ppa%'			 "
+  ,"        and   LOWER(categories) not like '%peight Loss%'	 "
+  ,"        and   LOWER(categories) not like '%acupuncture%' )	 "
   ," group by b.state									   "
   ," order by COUNT(*)								   "
 )
@@ -49,86 +60,361 @@ df
 
 ```
 
-From the below table, **reviews for Medical related businesses in the states AZ, NV, and NC are included in this analysis.**  *AZ_df, NV_df, NC_df* are the dataframes that contain the merged reviews and business information for the healthcare related business in the three states Arizona, Nevada, and North Carolina.  R code that generates these the dataframes is found in *combineBusinessReview.R*, in the same [getAndPrepDAta](https://github.com/mdcRed/Capstone_LDA_LSA/src/getAndPrepData).  *For state AZ, there are 12,358 review text; 9,006 reviews for NV state, and 940 reviews for NC state.*
+From the above table, **reviews for Medical related businesses in the state Arizona (AZ) are included  in this analysis.**  An ambitious intent in comparing medical review services from Arizona, to Nevada (NV) to North Carolina (NC) was planed, but due to the space limitation, analysis for NV and NC states was removed.  *AZ_df* is the dataframes that contain the merged reviews and business data items for the healthcare related business.  R code that generates these the dataframes is found in *combineBusinessReview.R*, in the same [getAndPrepDAta](https://github.com/mdcRed/Capstone_LDA_LSA/src/getAndPrepData).  *For state AZ, there are 1,614 medical and healthcare providers, with 10,827 review text to form the corpus.*
 
 
 ## Preparing data for text mining
 
-In order to prepare text for mining purpose,a *corpus* is generated from the text. After which,  punctuations are removed, numbers are removed, text is converted to lower cases.  In addition, text will be stemming, and stop words will be removed.  For this exercise, English stopwords will be using.  Refer to function [clean()](https://github.com/mdcRed/Capstone_LDA_LSA/src/dtm_tdm), for details of this process.  R *tm* package provides all functions to do the cleaning process.
+In order to prepare text for mining purpose, all review text for AZ generates a *corpus*. After which,  text is convert to lower case with punctuations, numbers and English stopwords are removed.  Stopwords are words like 'a', 'the', 'ive','we', etc.  The words in the corpus are also stemed; for instance, 'am', 'are', 'is' has a stem 'be'.  An other example is the text may contain "The boy's cars are different color"; after stemming process, the text may be converted to "the boy car be differ color"   Refer to function [clean()](https://github.com/mdcRed/Capstone_LDA_LSA/src/dtm_tdm), for details of this process.  R *tm* package provides all functions to prepare text for the mining  process that follows. 
 
-When the corpus is 'cleaned', the using *tm* package to generate document term matrix (dtm) or term document matrix (tdm).  DTM is a matrix of m-term of represent the vocabulary of the text data set as columns, and n-document rows; where as the tdm has n-document columns, and m-term rows.  Refer to *prepCorpus_dtm()* and *prepCorpus_tdm()* [here](https://github.com/mdcRed/Capstone_LDA_LSA/src/dtm_tdm) for codes.  
+After the corpus is 'cleaned', the using *tm* package to generate document term matrix (DTM) or term document matrix (TDM).  DTM is a matrix of (m-term x n-document); whereas the TDM is a transpose matrix of DTM, or  (n-documents x m-terms).  Refer to *prepCorpus_dtm()* and *prepCorpus_tdm()* for R code, [here](https://github.com/mdcRed/Capstone_LDA_LSA/src/dtm_tdm) in github 
 
-**Sparsity**   All dtm's and tdm's are quite sparse.  After number of trials in removing the sparsity, the dtm's and tdm's  achieve 78-79 percent sparsity, and the vocabulary contains from 47-53 terms.  
-
-Wordcloud for AZ  review text is shown below, on the left, the text in DTM is sparse, on the right some sparsity is removed, about 78% sparsity.
-
-Following wordcloud shows the very sparse reviews DTM for the state of AZ, and its wordcloud when DTM sparsity is removed to 78%.  
-
-```{r, echo=FALSE, warning=FALSE}
-
-load ("C:/Users/mcoyne/Documents/R/basicTm/capstone/processData/AZ.dtm.Rdata")
-load ("C:/Users/mcoyne/Documents/R/basicTm/capstone/processData/AZ.dtm.sp.Rdata")
+**Sparsity**   Both dtm's and tdm's for this text corpus is 100% sparse.  After number of trials in removing the sparsity, the dtm's (hence tdm's) achieves 78-79 percent sparsity.   At this level of sparsity, the vocabulary contains from 47-53 terms.   **In this analysis, 78% sparse DTM, with 47 terms for its vocabulary is used for further text mining purpose.** 
 
 
-AZ.dtm.mat <- as.matrix(AZ.dtm);
-AZ_freq      <- colSums(AZ.dtm.mat);
-AZ_freq       <- sort(AZ_freq, decreasing = TRUE)
-AZ_words <- names(AZ_freq)
-wordcloud(AZ_words,AZ_freq, scale=c(8,.2),min.freq=200,
-          max.words=Inf, random.order=FALSE, rot.per=.15
-          , colors=brewer.pal(8,"Dark2"))
+## Methods 
 
-## Less sparse
-AZ.dtm.sp.mat <- as.matrix(AZ.dtm.sp);
-AZ_freq       <- colSums(AZ.dtm.sp.mat);
-AZ_freq       <- sort(AZ_freq, decreasing = TRUE)
-AZ_words <- names(AZ_freq)
-wordcloud(AZ_words,AZ_freq, scale=c(8,.2),min.freq=200,
-          max.words=Inf, random.order=FALSE, rot.per=.15
-          , colors=brewer.pal(8,"Set3"))
+###  Latent Dirichlet Allocation (LDA) Topic Modeling
+
+In this analysis, LDA is used to classify all reviews for healthcare and medical business in AZ with a topic.  **Topic Models** are "[probabilistic] latent variable models of documents that exploit the correlation among the words and laten semantic themes" (1).   Topic ("latent") is hidden; it is to be estimated.   Topics link words in a vocabulary and their occurrence in a document.  A document is seen to be a mixture of *topics*.  LDA relies on the *bag-of-words* assumption, which means that that words in a document are exchangeable and  their order, therefore, is not imporant.  LDA has been thouroughly explained; in this project, I will use R implementation of LDA to perform analyses and will not go into the mathematical foundation of LDA (nor LSA in the next section).   In this project, *LDA is used to generate the topics for all review text of all medical and healthcare business of AZ state as found in the Yelp Challenge Dataset.*  The aim is to use LDA  to assist with sorting out the reviews in an automatic and fast way.
+
+For LDA model selection, the maxinum log likelihood occurs at the **optimum number of topics of 48**, as shown in the following figure.
+
+![AZ_LDA_k48](C:/Users/mcoyne/Documents/R/basicTm/capstone/doc/img/AZ_dtm_sp_ModelSelection.png)
+
+
+###  Latent Semantic Analysis (LSA)
+
+The Laten Semantic Analysis (LSA) model is a theory for how meaning representation might bee learned from encountering a large samples of language without explicit directions as to how it is constructed.  LSA assumes that the meanin of sentences is assumed to be the sum of the meaning of all the words occuring.  Hence the meaning of multi-word phrases is more greatly determined by which words occur in the phrase, rather than how the words are ordered.  A second assumption is that the semantic asssociatons between words is *latent* in a large sample of language and *eventually* the meaning is learned.  LSA is used in this project to find the **similarity** of review text.
+
+
+
+
+# Results
+
+## LDA finds Latent Topics for Review Text
+
+All 10,827 review text of 1,614 medical and healthcare business establishments in Arizona state are sorted out into **38** topics; which is the optinum number of topics, using maxinum log likelihood.  Following table shows the topic number and the five highest score terms that make up the topic. 
+
+
+```{r, echo=FALSE}
+
+library('RODBC')
+options(stringAsFactors=FALSE)
+
+connHandle <- odbcConnect("p-sql-w-ehr01.athena_dev", uid="ehruser", pwd="ehruser123");
+
+sqlString <- paste0(
+    "select distinct rt.lda_topic, rt.lda_terms    " 
+   ,"  from athena_dev.dbo.temp_AZ_review_topic rt "
+   ,"  order by rt.lda_topic                       "
+)
+
+df <- sqlQuery (connHandle,as.is=TRUE, sqlString);
+
+close (connHandle);
+
+df
 
 ```
 
 
-# Methods 
+## Comparing reviews for business
 
-## LDA topic modeling
+Contrasting 5-star reviews and 1-star reviews for 5 and 1 star business establisments with the two graphs shown below.  
 
-```{r, echo=FALSE, warning=FALSE}
+a. *Topic 1 with terms "best, staff, friend, recommend"*
 
-load('C:/Users/mcoyne/Documents/R/basicTm/capstone/processData/AZ.dtm.sp.LDA.fitted.many.Rdata')
+b. *Topic 9 with terms "friend, staff, recommend, good, great"*
 
-logL  <- as.data.frame ( as.matrix( lapply (AZ.dtm.sp.LDA.fitted.many, logLik)));
-logL.df <- data.frame (topic=seq(2,100, by=1), logLikelihood=as.numeric(as.matrix(logL)));
+c. *Topic 17 with terms "great, recommend, best, feel, help"*
 
-#graph
-logL.df.sort <- logL.df[order(-logL.df$logLikelihood),];
-optK <- logL.df.sort[1,]$topic
+are strong indicators of great reviews. 
 
-title <- paste0("LDA topic modeling. Model Selection using Log Likelihood.   Optimal k =", optK);
 
-ggplot(logL.df, aes(x = topic, y = logLikelihood)) + 
-  xlab("Number of topics") + 
-  ylab("Log likelihood of the model") + 
+
+```{r, echo=FALSE, warning=FALSE, fig.height=5,fig.width=10}
+
+library('RODBC')
+library('ggplot2')
+
+
+
+options(stringAsFactors=FALSE)
+
+connHandle <- odbcConnect("p-sql-w-ehr01.athena_dev", uid="ehruser", pwd="ehruser123");
+
+sqlString = paste0 (
+  "select rt.lda_topic, COUNT(*) as cnt						"
+  ," from 													"
+  ," (														"
+  ," 		 select distinct rt.bid							"
+  ," 		 from athena_dev.dbo.temp_AZ_review_topic rt	"
+  ," 		 where 1 = 1									"
+  ," 		 and rt.b_stars in (5.0) 						"
+  ," ) fstars_bus											"
+  ," , athena_dev.dbo.temp_AZ_review_topic rt				"
+  ," where 1 = 1												"
+  ," and fstars_bus.bid = rt.bid								"
+  ," and rt.r_stars in (5)									"
+  ," group by rt.lda_topic									"
+)
+
+five_five_rankDf <- sqlQuery (connHandle,as.is=TRUE, sqlString);
+
+
+sqlString = paste0 (
+  "select rt.lda_topic, COUNT(*) as cnt						"
+  ," from 													"
+  ," (														"
+  ," 		 select distinct rt.bid							"
+  ," 		 from athena_dev.dbo.temp_AZ_review_topic rt	"
+  ," 		 where 1 = 1									"
+  ," 		 and rt.b_stars in (5.0) 						"
+  ," ) fstars_bus											"
+  ," , athena_dev.dbo.temp_AZ_review_topic rt				"
+  ," where 1 = 1												"
+  ," and fstars_bus.bid = rt.bid								"
+  ," and rt.r_stars in (1)									"
+  ," group by rt.lda_topic									"
+  
+)
+five_one_rankDf <- sqlQuery (connHandle,as.is=TRUE, sqlString);
+
+close (connHandle);
+
+## 5 start business and review
+
+topic_tickmark  = c(1,2, 3, 4, 5, 6, 7,8, 9, 10, 11, 12, 13, 14, 15, 16,
+                    17, 18 , 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32,
+                    33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48)
+cols <- c("Legend"="#000000","5-star business and 5-star review"="#66a61e", "5-star business and 1-star review"="#E7298a")
+title <- paste0("Review Topics for 5-star Healthcare business in Arizona")
+
+ggplot() + 
+  xlab("Topic") + 
+  ylab("Log Count") +
+  scale_x_discrete(limits=topic_tickmark) +
   ggtitle(title) +
   theme(plot.title=element_text(size=14, hjust=2, family="Trebuchet MS", face="bold")) +
-  geom_line() + 
-  geom_point(size=3,colours="#d55E00") +
-  geom_vline(xintercept=optK,color="red") +
+  geom_point(data=five_five_rankDf,aes(x = lda_topic, y = cnt, colour="5-star business and 5-star review"), size=2 )+
+  geom_point(data=five_one_rankDf,aes(x = lda_topic,  y = cnt, colour="5-star business and 1-star review"), size=2, shape=17 ) +
+  coord_trans(y="log10") +
   theme_bw()  + 
   theme(axis.title.x = element_text(vjust = -0.5, size = 14)) + 
-  theme(axis.title.y=element_text(size = 14, angle=90, vjust= -0.25)) 
+  theme(axis.title.y=element_text(size = 14, angle=90, vjust= -0.25) ) +
+  theme(axis.text.x=element_text(angle=90, hjust=1)) +
+  scale_colour_manual(name="Legend", values=cols) +
+  theme(legend.position="bottom")
 
-## resturn the optK
+## one star business
+options(stringAsFactors=FALSE)
 
-optK
+connHandle <- odbcConnect("p-sql-w-ehr01.athena_dev", uid="ehruser", pwd="ehruser123");
+
+sqlString = paste0 (
+  "select rt.lda_topic, COUNT(*) as cnt						"
+  ," from 													"
+  ," (														"
+  ," 		 select distinct rt.bid							"
+  ," 		 from athena_dev.dbo.temp_AZ_review_topic rt	"
+  ," 		 where 1 = 1									"
+  ," 		 and rt.b_stars in (1.0, 1.5) 						"
+  ," ) fstars_bus											"
+  ," , athena_dev.dbo.temp_AZ_review_topic rt				"
+  ," where 1 = 1												"
+  ," and fstars_bus.bid = rt.bid								"
+  ," and rt.r_stars in (5)									"
+  ," group by rt.lda_topic									"
+)
+
+one_five_rankDf <- sqlQuery (connHandle,as.is=TRUE, sqlString);
+
+
+
+sqlString = paste0 (
+  "select rt.lda_topic, COUNT(*) as cnt						"
+  ," from 													"
+  ," (														"
+  ," 		 select distinct rt.bid							"
+  ," 		 from athena_dev.dbo.temp_AZ_review_topic rt	"
+  ," 		 where 1 = 1									"
+  ," 		 and rt.b_stars in (1.0, 1.5) 						"
+  ," ) fstars_bus											"
+  ," , athena_dev.dbo.temp_AZ_review_topic rt				"
+  ," where 1 = 1												"
+  ," and fstars_bus.bid = rt.bid								"
+  ," and rt.r_stars in (1)									"
+  ," group by rt.lda_topic									"
+  
+)
+one_one_rankDf <- sqlQuery (connHandle,as.is=TRUE, sqlString);
+
+close (connHandle);
+
+## 5 start business and review
+
+topic_tickmark  = c(1,2, 3, 4, 5, 6, 7,8, 9, 10, 11, 12, 13, 14, 15, 16,
+                    17, 18 , 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32,
+                    33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48)
+cols <- c("Legend"="#000000","1-star business and 5-star review"="#66a61e", "1-star business and 1-star review"="#E7298a")
+title <- paste0(" Review Topics for 1-star Healthcare business in Arizona")
+
+ggplot() + 
+  xlab("Topic") + 
+  ylab("Log Count") +
+  scale_x_discrete(limits=topic_tickmark) +
+  ggtitle(title) +
+  theme(plot.title=element_text(size=14, hjust=2, family="Trebuchet MS", face="bold")) +
+  geom_point(data=one_five_rankDf,aes(x = lda_topic, y = cnt, colour="1-star business and 5-star review"), size=2 ) +
+  geom_point(data=one_one_rankDf,aes(x = lda_topic,  y = cnt, colour="1-star business and 1-star review"), size=2, shape=17 ) +
+  coord_trans(y="log10") +
+  theme_bw()  + 
+  theme(axis.title.x = element_text(vjust = -0.5, size = 14)) + 
+  theme(axis.title.y=element_text(size = 14, angle=90, vjust= -0.25) ) +
+  theme(axis.text.x=element_text(angle=90, hjust=1)) +
+  scale_colour_manual(name="Legend", values=cols) +
+  theme(legend.position="bottom")
+
 
 
 ```
 
-## LSA Document similarity
+
+By removing the business ranking from the above two graphs, the following graph shows 5-star vs 1-star reviews for *all ranking/star* businesses.  The graph  **confirms that Topic 1, topic 9, and topic 17 are indicative of best ranking reviews.**  
+
+
+
+
+
+```{r, echo=FALSE, warning=FALSE, fig.height=5,fig.width=10}
+library('RODBC')
+library('ggplot2')
+
+options(stringAsFactors=FALSE)
+## ===========================================================
+## Graph 5-star reviews for al star business
+## ===========================================================
+connHandle <- odbcConnect("p-sql-w-ehr01.athena_dev", uid="ehruser", pwd="ehruser123");
+
+sqlString = paste0 (
+  "select rt.lda_topic, COUNT(*) as cnt						"
+  ," from 													"
+  ," (														"
+  ," 		 select distinct rt.bid							"
+  ," 		 from athena_dev.dbo.temp_AZ_review_topic rt	"
+  ," 		 where 1 = 1									"
+  ," ) fstars_bus											"
+  ," , athena_dev.dbo.temp_AZ_review_topic rt				"
+  ," where 1 = 1												"
+  ," and fstars_bus.bid = rt.bid								"
+  ," and rt.r_stars in (5)									"
+  ," group by rt.lda_topic									"
+)
+
+all_five_rankDf <- sqlQuery (connHandle,as.is=TRUE, sqlString);
+
+## ===========================================================
+## Graph 1-star reviews for al star business
+## ===========================================================
+
+sqlString = paste0 (
+  "select rt.lda_topic, COUNT(*) as cnt						"
+  ," from 													"
+  ," (														"
+  ," 		 select distinct rt.bid							"
+  ," 		 from athena_dev.dbo.temp_AZ_review_topic rt	"
+  ," 		 where 1 = 1									"
+  ," ) fstars_bus											"
+  ," , athena_dev.dbo.temp_AZ_review_topic rt				"
+  ," where 1 = 1												"
+  ," and fstars_bus.bid = rt.bid								"
+  ," and rt.r_stars in (1)									"
+  ," group by rt.lda_topic									"
+  
+)
+all_one_rankDf <- sqlQuery (connHandle,as.is=TRUE, sqlString);
+
+close (connHandle);
+
+## 5 start business and review
+
+topic_tickmark  = c(1,2, 3, 4, 5, 6, 7,8, 9, 10, 11, 12, 13, 14, 15, 16,
+                    17, 18 , 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32,
+                    33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48)
+cols <- c("Legend name"="#000000","5-star review"="#66a61e", "1-star review"="#E7298a")
+title <- paste0("1, 5 Review Star per Topic")
+
+ggplot() + 
+  xlab("Topic") + 
+  ylab("Log Count") +
+  scale_x_discrete(limits=topic_tickmark) +
+  ggtitle(title) +
+  theme(plot.title=element_text(size=14, hjust=2, family="Trebuchet MS", face="bold")) +
+  geom_point(data=all_five_rankDf,aes(x = lda_topic, y = cnt, colour="5-star review"), size=2 )+
+  geom_point(data=all_one_rankDf,aes(x = lda_topic,  y = cnt, colour="1-star review"), size=2 , shape=17) +
+  coord_trans(y="log10") +
+  theme_bw()  + 
+  theme(axis.title.x = element_text(vjust = -0.5, size = 14)) + 
+  theme(axis.title.y=element_text(size = 14, angle=90, vjust= -0.25) ) +
+  scale_colour_manual(name="Legend", values=cols) +
+  theme(legend.position="bottom")
+
+```
+
+
+In addition, by oberving the above graph, *Topic 8 with terms "call, back, one, well, feel"* shows high counts for 5-star reviews, as well as for 1-star reviews, with low star reviews are higher than high stars.   Below table show two specific cases where both reviews were placed in the same topic #8, but the reviews are completely different; yet the topic with terms 'call', 'back' fits well.  Latent Semantic Analysis (LSA) is used to review the document similarities.    
+
+| Business ID            | Review ID              | R star | Example text                           |
+|------------------------|------------------------|--------|----------------------------------------|
+| 1eCvpgvB4QA-0fSwb8-5Dw | NbcYFZRNBAlkzJHWtKgpZQ | 5      | Within 1 hour, he called me back       |
+| e4FM01_iF_2LLN_yiaYcHA | -d1Sl2KzWUIBsXOxH_0jdQ | 1      | heard nothing...called twice...nothing |
+
+## LSA Document Similarity
+
+Due to space limitation, only the result of LSA is shown below.  LSA space for all review text, distance matrix are calculate.  LSA space dimension is reduced to 47 terms.  Below figure shows an example of how the review text are 'clustered', or similarity.  **The above two text reviews, although placed in the same topic by LDA, are very far apart by LSA calculation.**  The two review documents are  marked by two emphasized triangles in the figure below.
+
+```{r, echo=FALSE, warning=FALSE}
+
+load('points.d.Rdata')
+load('points.seek.Rdata')
+
+title <- paste0("Review Text similarity, k=2")
+
+ggplot (points.d, x=x , y=y) +
+  geom_point(data=points.d, aes(x=x, y=y,colour=factor(r_stars)), alpha=0.3) + 
+  geom_point(data=points.seek, aes(x=x, y=y,colour=factor(r_stars)), size=10, shape=17) +
+  ggtitle(title) +
+  scale_color_manual(values=c("#e7298a","#551A8B","#00ffff","#0000FF","#66a61e"))
+
+
+```
+
+
 
 # Discussion
 
+1. It is qualitatively possible to sort out the review text with appropriate topic assigned.  For the Yelp Challenge Dataset, the terms *"best,friend, recommend, good, great, help"* are strongly associated with great reviews.   However LDA fails to detect negation, as seen in the cases when two different reviews are placed in the same topic 8, with terms "call, back, one, well, feel".  A case when the Yelper gave 5-star review dues to the business 'call back promptly as promised"; whereas another case, when the Yelper "did not get the call back, hear nothing", hence the business received a 1-star review.   
+ 
+
+2.  LSA helps in finding similarities or dissimilarities in document text.  The review text is used to form a corpus, from which document term matrix (dtm) was built with 78% sparsity.  At this sparsity, the vocabulary for the corpus conprises of 47 terms of the LSA space.  Within the LSA space, it uncovers that the two text reviews are quite far apart in LSA space; they are not 'close' enough in distance to be in the sme cluser, or in the same topic as resulted by LDA.   
+
+3.  LSA can be used for reducing dimensionality and served as a tool to perform similarities between documents, hence clustering.    
+
+4. Although LDA and LSA can compliment each other in text mining, it requires a considerable human effort in reviewing the results; they do not provide a turn-key solution.
+
+5. This work can be further improved in applications such as:
+
+    a. Intelligently Categorize business type, categories that are currently in Yelp using LDA
+    
+    b. Forming a search engine where users can use natural language and better information retrieval. In this applicaiton, review text are grouped into its topics; after carefully review of the topics and its grouping, the text can be served as examples to train LSA in forming indices for thes topics (or categories).  Then Yelpers can query these indices  using natural language (as opposed to keyword search) to find business needed.    The query is compared to the trained examples, the most *similar* reviews in latent or hidden meaning will be retrieved and present to users.
+
+
 
 # References
+
+(1)  D. M. Blei and  J. D. Lfferty.  A correlated topic model of Science. Annals of Applied Statistics, 1(1):17-35, 2007
+
+(2)   R. Arun, V. Suresh, C.E. Veni Mdhavan, and M.Narashima Murty. *On Finding the Natural Number of Topics with Laten Dirichelet Allocation: Some Observations, PAKDD 2010, Part I, LNAI 6118, 391-402.
+
+
