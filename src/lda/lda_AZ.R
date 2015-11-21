@@ -15,7 +15,18 @@ empty.rows <- AZ.dtm.sp[rowTotals == 0,]$dimnames[1][[1]]
 AZ_df.corpus.clean <- AZ_df.corpus.clean[-as.numeric(empty.rows)]
 
 ## ==================================================================
+## Adjust the original AZ_df data frame as well
+## ===================================================================
+AZ_df.new <- AZ_df[rowTotals > 0, ]
+
+## ==================================================================
 ## Now, try to find out the optimal topic numbers
 ## ==================================================================
 optK <- loglikeAsModelSelection(AZ.dtm.sp.new)
+
+## ==================================================================
+## run LDA at the optK number of topics
+## ==================================================================
+## Continue in findDocTermResult.R
+
 

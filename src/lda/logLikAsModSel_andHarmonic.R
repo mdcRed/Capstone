@@ -50,3 +50,24 @@ ggplot(logL.df, aes(x = topic, y = logLikelihood)) +
 
 optK
 
+## ===============================================================================
+## Using harmonic log likelihood
+##    CANNOT use this in this case, as there are many negative numbers
+## ===============================================================================
+harmonicMean <- function(logLikelihoods, precision=2000L) {
+  library("Rmpfr")
+  llMed <- median(logLikelihoods)
+  as.double(llMed - log(mean(exp(-mpfr(logLikelihoods,
+                                       prec = precision) + llMed))))
+}
+
+logLiks_many <- lapply(AZ.dtm.sp.LDA.fitted.many, function(L) L@logLiks[-c(1:(burnin/keep))])
+
+## Compute harmonic mean
+hm_many <- sapply (logLiks_many, function (h) harmonicMean(h))
+
+# inspect
+plot(sequ, hm_many, type="l")
+
+sequ[which.max(hm_many)]
+

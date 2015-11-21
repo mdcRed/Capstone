@@ -25,3 +25,9 @@ load("C:/Users/mcoyne/Documents/R/basicTm/capstone/processData/NC.tdm.Rdata")
 load("C:/Users/mcoyne/Documents/R/basicTm/capstone/processData/AZ.tdm.sp.Rdata")
 load("C:/Users/mcoyne/Documents/R/basicTm/capstone/processData/NV.tdm.sp.Rdata")
 load("C:/Users/mcoyne/Documents/R/basicTm/capstone/processData/NC.tdm.sp.Rdata")
+
+## model selection
+load('C:/Users/mcoyne/Documents/R/basicTm/capstone/processData/AZ.dtm.sp.LDA.fitted.many.Rdata')
+
+## load AZ_df
+load("C:/Users/mcoyne/Documents/R/basicTm/capstone/processData/AZ_df.Rdata")
