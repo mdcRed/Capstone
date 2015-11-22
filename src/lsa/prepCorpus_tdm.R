@@ -14,7 +14,7 @@ NC_df.corpus <- Corpus(VectorSource(NC_df$r_text))
 ## Run the wordcloud couple times to see the additional words 
 ##     that should be stopped
 ## ================================================================
-myStopwords <- c(stopwords("english"), "the", "and","she", "you", "they");
+myStopwords <- c(stopwords("english"), "the", "and","she", "you", "they", "ive");
 #idx <- which(myStopwords=="not");  ## remove Not from stopword
 #myStopwords <- myStopwords[-idx];
 ## clean corpus

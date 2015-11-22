@@ -138,6 +138,31 @@ ggplot (points.d, x=x , y=y) +
   geom_point(data=points.seek, aes(x=x, y=y,colour=factor(r_stars)), size=10, shape=17) + 
   scale_color_manual(values=c("#e7298a","#551A8B","#00ffff","#0000FF","#66a61e"))
 
+## ==================================================================
+## since call and back are in k=4,5 will try to fit 5
+## k =4 is back; k=5 is call
+## ==================================================================
+## dist.lsa.d <- dist(myMatrix)
+fit.d.6 <- cmdscale(dist.lsa.d, eig=TRUE, k=6)
+points.d.6<- data.frame(x=fit.d.6$points[,4]
+                         , y=fit.d.6$points[,5]
+                         , r_stars=AZ_df$r_stars
+                         , bid=AZ_df$bid
+                         , r_id=AZ_df$r_id
+                         , b_stars=AZ_df$b_stars )
+
+points.d.6.seek <- subset(points.d.6, (points.d.6$r_id == '-d1Sl2KzWUIBsXOxH_0jdQ' | points.d.6$r_id == 'NbcYFZRNBAlkzJHWtKgpZQ') )
+
+title <- paste0("Fig. 5 - Review Text Similarity (clusters), k=6")
+ggplot (points.d.6, x=x , y=y) +
+  geom_point(data=points.d.6, aes(x=x, y=y,colour=factor(r_stars)), alpha=0.3) + 
+  geom_point(data=points.d.6.seek, aes(x=x, y=y,colour=factor(r_stars)), size=8, shape=17) +
+  ggtitle(title) +
+  scale_color_manual(values=c("#e7298a","#551A8B","#00ffff","#0000FF","#66a61e"))
+
+
+
+
 
 
 
