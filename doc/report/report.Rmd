@@ -65,7 +65,7 @@ All 10,827 review text documents are used to generate a *corpus*. After which,  
 
 After the corpus is 'cleaned', the *tm* package is used to generate document term matrix (DTM) or term document matrix (TDM).  DTM is a matrix of (m-terms by n-documents); whereas the TDM is a transposed of DTM, or  (n-documents by m-terms).  Refer to *prepCorpus_dtm()* and *prepCorpus_tdm()* for the R code. 
 
-Both dtm's and tdm's for this text corpus is 100% sparse. This is because the corpus has 10827 documents with 19,402 terms; and majority of the terms appear only once in all documents; hence increase the sparsity of the measure (or term in text mining).    After number of trials in removing the sparsity, the dtm's (hence tdm's) sparsity is reduced to 78%-79%. At this level of sparsity, the terms are from 47-53 terms, respectively.   
+Both dtm's and tdm's for this text corpus is 100% sparse. This is because the corpus has 10,827 documents with 19,402 terms; and majority of the terms appear only once in all documents; hence increase the sparsity of the measure (or term in text mining).    After number of trials in removing the sparsity, the dtm's (hence tdm's) sparsity is reduced to 78%-79%. At this level of sparsity, the terms are from 47-53 terms, respectively.   
 
 
 ## Methods 
@@ -391,11 +391,20 @@ In addition, Fig. 4 also shows an interesting observation: some 1-star reviews a
 
 ## LSA Document Similarity
 
-Due to space limitation, only the result of LSA is shown below.  In practice the DTM is a m by n (m x n) matrix, where m is number of documents, and n is number of terms.  DTM can be decomposed, by a singular Value Decomposition (SVD), into matrices M, T, and D.  Then only k-eigen values are kept,  the  *approximation of the DTM, or LSA Space is represented below, with T is Term Vector matrix, D is Document Vector matrix and S is the single values.*  For our specific case,  *k is found to be 47 terms*. 
-   
-    LSA Space = Approximated of (M) =  T (m x k) . S (k x k) . D(k x n)
-              
-Each dot on Fig. 5 is a review text. The x and y axis is a dimension of LSA space, in this case is term 'call', and 'back', respectively.  Fig. 5 shows the review text are 'clustered', or similarity.  An observation is **the above two text reviews, although placed in the same topic by LDA, are very far apart by LSA calculation.**  The two review documents are  marked by two emphasized triangles in the figure below.  The 1-star review (in pink) is within the cluster for 1-star riew; however the 5-star review (in green) is an outlier in its cluster.
+Due to space limitation, only the result of LSA is shown below.  Using the same DTM that was used in LDA to calculate LSA space with *dimCalc_raw()* for dimension, the *R lsa package*  found the LSA space is made up of 47 terms; they are:
+
+```{r, echo=FALSE, warning=FALSE}
+load('C:/Users/mcoyne/Documents/R/basicTm/capstone/processData/myMatrix.LSAspace.Rdata')
+##colnames(myMatrix)
+
+```
+      
+| [1] "also","alway","appoint","back","call","can","care","come","day","dentist","doctor","dont"     
+| [13] "even","experi","feel","first","friend","get","good","great","help","just","know","like"      
+| [25] "look","make","need","never","now","offic","one","patient","place","realli","recommend" "see" 
+| [37] "servic","staff","take","time","visit","wait","well","went","will","work","year"              
+
+The graph on Fig. 5 is the distance of each of the 10,827 review documents, in the dimension 'back' and 'call'. Fig. 5 shows the review text are 'clustered', or similarity.  An observation made from the plot is **the above two text reviews, although placed in the same topic by LDA, are very far apart by LSA calculation.**  The two review documents are  marked by two emphasized triangles in the figure below.  The 1-star review (in pink) is within the cluster for 1-star riew; however the 5-star review (in green) is an outlier in its cluster.
 
 ```{r, echo=FALSE, warning=FALSE, fig.height=2.0}
 library (ggplot2)
@@ -405,8 +414,8 @@ load('C:/Users/mcoyne/Documents/R/basicTm/capstone/processData/points.d.6.seek.R
 
 title <- paste0("Fig. 5 - Review Text Similarity (clusters), k=6")
 ggplot (points.d.6, x=x , y=y) +
-  xlab("Term: call") + 
-  ylab("Term: back") +
+  xlab("Term: back") + 
+  ylab("Term: call") +
   geom_point(data=points.d.6, aes(x=x, y=y,colour=factor(r_stars)), alpha=0.3) + 
   geom_point(data=points.d.6.seek, aes(x=x, y=y,colour=factor(r_stars)), size=8, shape=17) +
   ggtitle(title) +
@@ -418,13 +427,13 @@ ggplot (points.d.6, x=x , y=y) +
 
 # Discussion
 
-1. It is qualitatively possible to sort out the review text with appropriate topic assigned.  For the Yelp Challenge Dataset, the terms *"best,friend, recommend, good, great, help"* are strongly associated with great reviews.   However LDA fails to detect negation, as seen in the cases when two different reviews are both labeled as topic 8 ("call, back, one, well, feel").  Although the labeling is correct, a reviewer gives 5-star because the doctor 'call back promptly as promised"; whereas in the second  case, when a user  "did not get the call back, hear nothing" from the office, he gave a poor review of 1-star.  
+1. **It is qualitatively possible to sort out the review text with appropriate topic assigned.**  For the Yelp Challenge Dataset, the terms *"best,friend, recommend, good, great, help"* are strongly associated with great reviews.   However LDA fails to detect negation, as seen in the cases when two different reviews are both labeled as topic 8 ("call, back, one, well, feel").  Although the labeling is correct, a reviewer gives 5-star because the doctor 'call back promptly as promised"; whereas in the second  case, when a user  "did not get the call back, hear nothing" from the office, he gave a poor review of 1-star.  
 
-2.  At the 78% sparsity of the corpus, R LSA package calculation reduces the dimensions to *47 terms*, or *47 eigen values*.  using LSA, it uncovers that the two text reviews are quite far apart (shown as large triagles in Fig. 5). They are not 'close' enough in distance to be in the same cluster. This observation shows that the two pieces of text are made up of similar vocabularies, are labeled by same LDA topic, but quite 'far apart' in LSA space. *LDA and LSA can be used together providing complementary analysis tool to each other.*   
+2.  **LSA and LDA are complementary tools for text analytics.** At the 78% sparsity of the corpus, R LSA package calculation reduces the dimensions to *47 terms*, or *47 eigen values*.  using LSA, it uncovers that the two text reviews are quite far apart (shown as large triagles in Fig. 5). They are not 'close' enough in distance to be in the same cluster. This observation shows that the two pieces of text are made up of similar vocabularies, are labeled by same LDA topic, but quite 'far apart' in LSA space. *LDA and LSA can be used together providing complementary analysis tool to each other.*   
 
-3. Although LDA and LSA can complement each other in text mining, it requires a considerable human effort in reviewing the results; they do not provide a turn-key solution.
+3. **Human in the loop.** Although LDA and LSA can complement each other in text mining, it requires a considerable human effort in reviewing the results; they do not provide a turn-key solution.
 
-4. This work can be further improved in applications such as:
+4. **Next step** This work can be further improved in applications such as:
 
     a. Intelligently Categorize business type, categories that are currently in Yelp using LDA
     
