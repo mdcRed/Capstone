@@ -143,7 +143,7 @@ ggplot (points.d, x=x , y=y) +
 ## k =4 is back; k=5 is call
 ## ==================================================================
 ## dist.lsa.d <- dist(myMatrix)
-fit.d.6 <- cmdscale(dist.lsa.d, eig=TRUE, k=6)
+#fit.d.6 <- cmdscale(dist.lsa.d, eig=TRUE, k=6)
 points.d.6<- data.frame(x=fit.d.6$points[,4]
                          , y=fit.d.6$points[,5]
                          , r_stars=AZ_df$r_stars
